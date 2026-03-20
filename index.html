@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#020c18">
+<title>J.A.R.V.I.S</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { min-height:100vh; background:#020c18; font-family:'Courier New',monospace; color:#00d4ff; display:flex; flex-direction:column; align-items:center; padding:16px; background-image:radial-gradient(ellipse at 50% 0%,#001a2e 0%,#020c18 70%); overflow-x:hidden; }
+.scanlines { position:fixed; inset:0; background-image:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,0.012) 2px,rgba(0,212,255,0.012) 4px); pointer-events:none; z-index:10; }
+.header { text-align:center; margin-bottom:8px; }
+.header .sub { font-size:10px; letter-spacing:8px; color:#0066aa; }
+.header h1 { font-size:24px; font-weight:bold; letter-spacing:10px; color:#00d4ff; text-shadow:0 0 20px #00d4ff,0 0 40px #0088cc; }
+.header .tag { font-size:9px; letter-spacing:4px; color:#004488; }
+#statusBar { width:100%; max-width:640px; background:rgba(0,20,40,0.9); border:1px solid #003355; border-left:3px solid #00d4ff; padding:10px 14px; margin-bottom:8px; font-size:11px; letter-spacing:2px; color:#00d4ff; border-radius:2px; text-align:center; transition:all 0.4s; }
+#statusBar.listening { border-left-color:#ff4400; color:#ff6600; }
+#statusBar.speaking  { border-left-color:#00ff88; color:#00ff88; }
+#statusBar.thinking  { border-left-color:#ffaa00; color:#ffaa00; }
+.reactor-wrap { position:relative; width:250px; height:250px; margin-bottom:8px; flex-shrink:0; }
+@keyframes spinF { from{transform:translate(-50%,-50%) rotate(0deg)} to{transform:translate(-50%,-50%) rotate(360deg)} }
+@keyframes spinR { from{transform:translate(-50%,-50%) rotate(0deg)} to{transform:translate(-50%,-50%) rotate(-360deg)} }
+@keyframes pulseC { 0%,100%{box-shadow:0 0 20px #00d4ff,0 0 60px #0066aa} 50%{box-shadow:0 0 40px #00d4ff,0 0 100px #0088cc} }
+@keyframes listenP { 0%,100%{box-shadow:0 0 20px #ff4400,0 0 60px #aa2200;transform:translate(-50%,-50%) scale(1)} 50%{box-shadow:0 0 80px #ff6600,0 0 140px #ff2200;transform:translate(-50%,-50%) scale(1.18)} }
+@keyframes speakP  { 0%,100%{box-shadow:0 0 20px #00ff88,0 0 60px #006633;transform:translate(-50%,-50%) scale(1)} 50%{box-shadow:0 0 60px #00ff88,0 0 120px #00cc55;transform:translate(-50%,-50%) scale(1.12)} }
+@keyframes thinkP  { 0%,100%{box-shadow:0 0 20px #ffaa00,0 0 60px #664400;transform:translate(-50%,-50%) scale(1)} 50%{box-shadow:0 0 60px #ffcc00,0 0 120px #ff8800;transform:translate(-50%,-50%) scale(1.08)} }
+@keyframes blink   { 0%,100%{opacity:1} 50%{opacity:0.2} }
+@keyframes wave    { 0%,100%{height:4px;opacity:0.3} 50%{height:20px;opacity:1} }
+.ring-label { position:absolute; left:50%; transform:translateX(-50%); font-size:8px; letter-spacing:3px; color:#004488; }
+.center-core { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background 0.5s; }
+.chat-box { width:100%; max-width:640px; border:1px solid #003355; border-top:2px solid #00d4ff; background:rgba(0,20,40,0.85); border-radius:4px; padding:14px; height:175px; overflow-y:auto; margin-bottom:8px; }
+.chat-box::-webkit-scrollbar{width:4px} .chat-box::-webkit-scrollbar-track{background:#010a14} .chat-box::-webkit-scrollbar-thumb{background:#003355}
+.msg { display:flex; gap:10px; margin-bottom:10px; }
+.msg-label { font-size:9px; letter-spacing:2px; min-width:55px; text-align:right; margin-top:2px; flex-shrink:0; }
+.msg-text { font-size:12px; line-height:1.6; border-left:1px solid #003355; padding-left:10px; }
+.msg.jarvis .msg-label { color:#00d4ff; } .msg.jarvis .msg-text { color:#88ccff; }
+.msg.user .msg-label { color:#ff6600; } .msg.user .msg-text { color:#ffaa66; border-color:#332200; }
+.typing { animation:blink 1s infinite; }
+.controls { display:flex; gap:8px; width:100%; max-width:640px; margin-bottom:8px; flex-wrap:wrap; align-items:center; }
+.btn { padding:8px 14px; font-family:'Courier New',monospace; font-size:10px; letter-spacing:2px; cursor:pointer; border-radius:2px; transition:all 0.3s; border:1px solid #005588; background:rgba(0,60,120,0.3); color:#0099cc; }
+.btn.active { border-color:#00d4ff; background:rgba(0,180,255,0.15); color:#00d4ff; box-shadow:0 0 10px rgba(0,180,255,0.3); }
+.btn.red { border-color:#ff4400; background:rgba(255,60,0,0.2); color:#ff4400; }
+.waveform { display:flex; gap:3px; align-items:center; margin-left:auto; }
+.wave-bar { width:3px; border-radius:2px; animation:wave 0.6s ease-in-out infinite; }
+.input-row { display:flex; width:100%; max-width:640px; gap:8px; }
+#userInput { flex:1; background:rgba(0,15,30,0.9); border:1px solid #003355; border-bottom:2px solid #00d4ff; color:#00d4ff; padding:11px 14px; font-size:12px; font-family:'Courier New',monospace; outline:none; border-radius:2px; }
+#userInput::placeholder { color:#003355; }
+#sendBtn { background:rgba(0,100,200,0.2); border:1px solid #00d4ff; color:#00d4ff; padding:11px 18px; font-family:'Courier New',monospace; font-size:10px; letter-spacing:3px; cursor:pointer; border-radius:2px; }
+#sendBtn:disabled { opacity:0.3; cursor:not-allowed; }
+.footer { margin-top:8px; font-size:8px; letter-spacing:2px; color:#002233; text-align:center; }
+.wake-hint { font-size:11px; letter-spacing:2px; color:#004466; margin-bottom:6px; text-align:center; }
+  position:fixed; top:10px; right:10px; z-index:100;
+  background:rgba(0,20,40,0.8); border:1px solid #003355;
+  color:#004466; padding:6px 10px; font-family:'Courier New',monospace;
+  font-size:10px; cursor:pointer; border-radius:2px;
+  transition:all 0.3s;
+}
+.fullscreen-btn:hover { color:#00d4ff; border-color:#00d4ff; }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="header">
+  <div class="sub">STARK INDUSTRIES</div>
+  <h1>J.A.R.V.I.S</h1>
+  <div class="tag">JUST A RATHER VERY INTELLIGENT SYSTEM</div>
+</div>
+<div id="statusBar">⬤ СИСТЕМА В РЕЖИМЕ ОЖИДАНИЯ</div>
+<div class="reactor-wrap" id="reactor"></div>
+<div class="wake-hint" id="wakeHint">💬 Нажмите <b style="color:#00d4ff">"РЕЖИМ ГОЛОСА"</b> и скажите <b style="color:#00d4ff">"Джарвис"</b></div>
+<div class="chat-box" id="chatBox">
+  <div class="msg jarvis">
+    <div class="msg-label">JARVIS</div>
+    <div class="msg-text">Системы активированы. Скажите "Джарвис" — я откликнусь, сэр.</div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="voiceBtn" onclick="toggleVoice()">🔇 ЗВУК ВЫКЛ</button>
+  <button class="btn" id="micBtn" onclick="toggleWakeMode()">🎤 РЕЖИМ ГОЛОСА</button>
+  <div class="waveform" id="waveform" style="display:none">
+    <div class="wave-bar" style="animation-delay:0s"></div>
+    <div class="wave-bar" style="animation-delay:0.1s"></div>
+    <div class="wave-bar" style="animation-delay:0.2s"></div>
+    <div class="wave-bar" style="animation-delay:0.3s"></div>
+    <div class="wave-bar" style="animation-delay:0.15s"></div>
+  </div>
+</div>
+<div class="input-row">
+  <input type="text" id="userInput" placeholder="Или напишите запрос, сэр..." />
+  <button id="sendBtn" onclick="sendMessage()">SEND</button>
+</div>
+<div class="footer">РЕЖИМ ГОЛОСА → СКАЖИТЕ "ДЖАРВИС" → ПАУЗА → ВАШ ВОПРОС • V6.0</div>
+
+<script>
+// ── Fullscreen ─────────────────────────────────────────────
+function toggleFullscreen() {
+  const el = document.documentElement;
+  if (!document.fullscreenElement) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+    if (req) req.call(el);
+  } else {
+    const ex = document.exitFullscreen || document.webkitExitFullscreen;
+    if (ex) ex.call(document);
+  }
+}
+
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('fsBtn');
+  if (document.fullscreenElement) {
+    btn.textContent = '✕ ВЫХОД';
+  } else {
+    btn.textContent = '⛶ FULLSCREEN';
+  }
+});
+
+// Авто-полный экран при первом касании
+let fsTriggered = false;
+document.addEventListener('touchstart', () => {
+  if (!fsTriggered && !document.fullscreenElement) {
+    fsTriggered = true;
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el).catch(()=>{});
+  }
+}, { once: true });
+
+// ── Авто-запрос микрофона при первом касании ──────────────
+window.addEventListener('load', () => {
+  // Показываем подсказку
+  setTimeout(() => {
+    appendMessage('jarvis', 'Нажмите на экран чтобы активировать голосовое управление, сэр.');
+  }, 800);
+});
+
+document.addEventListener('click', function initMic() {
+  document.removeEventListener('click', initMic);
+  if (!SR) return;
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(() => {
+      wakeMode = true;
+      const btn = document.getElementById('micBtn');
+      btn.textContent = '🔴 ВЫКЛ ГОЛОС'; btn.classList.add('red');
+      document.getElementById('wakeHint').innerHTML = '💬 Скажите <b style="color:#00ff88">"Джарвис"</b> — я откликнусь!';
+      startContinuousRec();
+      appendMessage('jarvis', 'Микрофон активирован, сэр. Говорите "Джарвис"!');
+    })
+    .catch(() => {
+      appendMessage('jarvis', 'Доступ к микрофону отклонён, сэр. Разрешите доступ в настройках Chrome.');
+    });
+}, { once: true });
+
+const SYSTEM_PROMPT = `Ты — Джарвис, высокоинтеллектуальный ИИ-ассистент в стиле из фильма Железный Человек. Ты говоришь кратко, умно и с лёгкой иронией. Обращаешься к пользователю "сэр" или "мэм". Отвечай на русском языке. Будь лаконичен — максимум 3-4 предложения.`;
+
+let messages = [], loading = false, voiceEnabled = false, speaking = false;
+let wakeMode = false, waitingCommand = false;
+let availableVoices = [];
+const synth = ('speechSynthesis' in window) ? window.speechSynthesis : null;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+// Один объект распознавания — continuous, чтобы не пикало
+let rec = null;
+
+// ── Reactor — стиль из фильма ──────────────────────────────
+(function(){
+  const wrap = document.getElementById('reactor');
+  wrap.style.cssText = 'position:relative;width:300px;height:300px;margin-bottom:8px;flex-shrink:0;';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width','300'); svg.setAttribute('height','300');
+  svg.setAttribute('viewBox','0 0 300 300');
+  svg.style.cssText = 'position:absolute;top:0;left:0;';
+
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+
+  // Градиент для объёмного кольца
+  const grad = document.createElementNS('http://www.w3.org/2000/svg','radialGradient');
+  grad.setAttribute('id','ringGrad'); grad.setAttribute('cx','50%'); grad.setAttribute('cy','50%'); grad.setAttribute('r','50%');
+  [['0%','#001a2a'],['40%','#003355'],['60%','#0088bb'],['80%','#00aadd'],['100%','#006688']]
+  .forEach(([o,c])=>{ const s=document.createElementNS('http://www.w3.org/2000/svg','stop'); s.setAttribute('offset',o); s.setAttribute('stop-color',c); grad.appendChild(s); });
+  defs.appendChild(grad);
+
+  // Градиент фона центра
+  const cgGrad = document.createElementNS('http://www.w3.org/2000/svg','radialGradient');
+  cgGrad.setAttribute('id','centerGrad'); cgGrad.setAttribute('cx','50%'); cgGrad.setAttribute('cy','50%'); cgGrad.setAttribute('r','50%');
+  [['0%','#051520'],['60%','#030e18'],['100%','#020c14']]
+  .forEach(([o,c])=>{ const s=document.createElementNS('http://www.w3.org/2000/svg','stop'); s.setAttribute('offset',o); s.setAttribute('stop-color',c); cgGrad.appendChild(s); });
+  defs.appendChild(cgGrad);
+  svg.appendChild(defs);
+
+  // Фон
+  const bg = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  bg.setAttribute('cx','150'); bg.setAttribute('cy','150'); bg.setAttribute('r','148');
+  bg.setAttribute('fill','#020c18'); svg.appendChild(bg);
+
+  // === ОБЪЁМНОЕ ШИРОКОЕ ВНЕШНЕЕ КОЛЬЦО (как в фильме) ===
+  // Тень снаружи
+  const ringOuter = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  ringOuter.setAttribute('cx','150'); ringOuter.setAttribute('cy','150'); ringOuter.setAttribute('r','138');
+  ringOuter.setAttribute('fill','none'); ringOuter.setAttribute('stroke','#004466'); ringOuter.setAttribute('stroke-width','28');
+  svg.appendChild(ringOuter);
+
+  // Основной цвет кольца — голубой объёмный
+  const ringMain = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  ringMain.setAttribute('cx','150'); ringMain.setAttribute('cy','150'); ringMain.setAttribute('r','138');
+  ringMain.setAttribute('fill','none'); ringMain.setAttribute('stroke','#0099cc'); ringMain.setAttribute('stroke-width','22');
+  ringMain.style.filter = 'drop-shadow(0 0 8px #00bbdd) drop-shadow(0 0 16px #0077aa)';
+  svg.appendChild(ringMain);
+
+  // Светлая полоса сверху кольца (3D блик)
+  const ringHighlight = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  ringHighlight.setAttribute('cx','150'); ringHighlight.setAttribute('cy','150'); ringHighlight.setAttribute('r','138');
+  ringHighlight.setAttribute('fill','none'); ringHighlight.setAttribute('stroke','#55ddff'); ringHighlight.setAttribute('stroke-width','3');
+  ringHighlight.setAttribute('stroke-dasharray',`${Math.PI*138*0.6} ${Math.PI*138*1.4}`);
+  ringHighlight.setAttribute('stroke-dashoffset',`${Math.PI*138*0.85}`);
+  svg.appendChild(ringHighlight);
+
+  // Деления на кольце (150 штук как в кино)
+  for (let i = 0; i < 150; i++) {
+    const angle = (i / 150) * 360;
+    const rad = (angle - 90) * Math.PI / 180;
+    const isLong = i % 5 === 0;
+    const r1 = 150, r2 = isLong ? 126 : 132;
+    const x1 = 150 + r1*Math.cos(rad), y1 = 150 + r1*Math.sin(rad);
+    const x2 = 150 + r2*Math.cos(rad), y2 = 150 + r2*Math.sin(rad);
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',x1); line.setAttribute('y1',y1);
+    line.setAttribute('x2',x2); line.setAttribute('y2',y2);
+    line.setAttribute('stroke', isLong ? '#aaeeff' : '#44aacc');
+    line.setAttribute('stroke-width', isLong ? '2' : '1');
+    svg.appendChild(line);
+  }
+
+  // Внешняя яркая граница
+  const outerBorder = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  outerBorder.setAttribute('cx','150'); outerBorder.setAttribute('cy','150'); outerBorder.setAttribute('r','149');
+  outerBorder.setAttribute('fill','none'); outerBorder.setAttribute('stroke','#0077aa'); outerBorder.setAttribute('stroke-width','1.5');
+  svg.appendChild(outerBorder);
+
+  // Внутренняя граница кольца
+  const innerBorder = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  innerBorder.setAttribute('cx','150'); innerBorder.setAttribute('cy','150'); innerBorder.setAttribute('r','126');
+  innerBorder.setAttribute('fill','none'); innerBorder.setAttribute('stroke','#00ccee'); innerBorder.setAttribute('stroke-width','2');
+  innerBorder.style.filter = 'drop-shadow(0 0 4px #00ccee)';
+  svg.appendChild(innerBorder);
+
+  // Жёлтая дуга (слева, как в фильме)
+  const arcEl = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  arcEl.setAttribute('cx','150'); arcEl.setAttribute('cy','150'); arcEl.setAttribute('r','138');
+  arcEl.setAttribute('fill','none'); arcEl.setAttribute('stroke','#ffaa00'); arcEl.setAttribute('stroke-width','6');
+  arcEl.setAttribute('stroke-dasharray',`${Math.PI*138*0.18} ${Math.PI*138*1.82}`);
+  arcEl.setAttribute('stroke-dashoffset',`${Math.PI*138*0.5}`);
+  arcEl.style.filter = 'drop-shadow(0 0 5px #ffaa00) drop-shadow(0 0 10px #ff8800)';
+  arcEl.id = 'arcEl';
+  svg.appendChild(arcEl);
+
+  // Жёлто-зелёные точки сверху (как в фильме)
+  const dotAngles = [-75,-60,-45,-30,-15,0];
+  const dotColors = ['#88cc00','#88cc00','#ffffff','#88cc00','#88cc00','#88cc00'];
+  const dotSizes  = [3,3,6,3,3,3];
+  dotAngles.forEach((a,i) => {
+    const rad = (a - 90) * Math.PI / 180;
+    const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    dot.setAttribute('cx', 150 + 138*Math.cos(rad));
+    dot.setAttribute('cy', 150 + 138*Math.sin(rad));
+    dot.setAttribute('r', dotSizes[i]);
+    dot.setAttribute('fill', dotColors[i]);
+    dot.style.filter = `drop-shadow(0 0 4px ${dotColors[i]})`;
+    svg.appendChild(dot);
+  });
+
+  // Центральный тёмный круг
+  const centerCircle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  centerCircle.setAttribute('cx','150'); centerCircle.setAttribute('cy','150'); centerCircle.setAttribute('r','122');
+  centerCircle.setAttribute('fill','url(#centerGrad)');
+  svg.appendChild(centerCircle);
+
+  // Паттерн внутри — концентрические кольца
+  [95, 70, 45].forEach(r => {
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx','150'); c.setAttribute('cy','150'); c.setAttribute('r',r);
+    c.setAttribute('fill','none'); c.setAttribute('stroke','#001e30'); c.setAttribute('stroke-width','1');
+    svg.appendChild(c);
+  });
+
+  // Паттерн — радиальные линии
+  for (let i = 0; i < 12; i++) {
+    const rad = (i/12)*Math.PI*2;
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', 150 + 40*Math.cos(rad)); line.setAttribute('y1', 150 + 40*Math.sin(rad));
+    line.setAttribute('x2', 150 + 95*Math.cos(rad)); line.setAttribute('y2', 150 + 95*Math.sin(rad));
+    line.setAttribute('stroke','#001e30'); line.setAttribute('stroke-width','1');
+    svg.appendChild(line);
+  }
+
+  // Внутренняя светящаяся граница
+  const glowRing = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  glowRing.setAttribute('cx','150'); glowRing.setAttribute('cy','150'); glowRing.setAttribute('r','122');
+  glowRing.setAttribute('fill','none'); glowRing.setAttribute('stroke','#0088aa'); glowRing.setAttribute('stroke-width','1.5');
+  glowRing.style.filter = 'drop-shadow(0 0 3px #0088aa)';
+  svg.appendChild(glowRing);
+
+  wrap.appendChild(svg);
+
+  // HTML центр с текстом J.A.R.V.I.S.
+  const core = document.createElement('div');
+  core.id = 'coreEl';
+  core.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:240px;height:240px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;animation:pulseC 2s ease-in-out infinite;';
+  core.innerHTML = `<span id="coreText" style="font-family:'Arial Black','Impact',sans-serif;font-size:22px;font-weight:900;letter-spacing:4px;color:#ffffff;text-shadow:0 0 10px #ffffff,0 0 20px #00d4ff,0 0 40px #0088cc;text-align:center;line-height:1.2;">J.A.R.V.I.S.</span>`;
+  wrap.appendChild(core);
+
+  // Анимация дуги
+  let arcOff = Math.PI*138*0.5;
+  setInterval(() => {
+    arcOff -= 0.8;
+    arcEl.setAttribute('stroke-dashoffset', arcOff);
+  }, 16);
+})();
+
+function setReactorState(state) {
+  const core = document.getElementById('coreEl');
+  const coreText = document.getElementById('coreText');
+  const bar  = document.getElementById('statusBar');
+  const wave = document.getElementById('waveform');
+  const arc  = document.getElementById('arcEl');
+  bar.className = ''; wave.style.display = 'none';
+  const bars = wave.querySelectorAll('.wave-bar');
+
+  if (state === 'idle') {
+    core.style.animation = 'pulseC 2s ease-in-out infinite';
+    coreText.style.cssText = "font-family:'Arial Black',sans-serif;font-size:18px;font-weight:900;letter-spacing:3px;color:#ffffff;text-shadow:0 0 15px #00d4ff,0 0 30px #0088cc,0 0 50px #004466;text-align:center;";
+    coreText.textContent = 'J.A.R.V.I.S.';
+    bar.textContent = wakeMode ? '👂 ОЖИДАЮ СЛОВО "ДЖАРВИС"...' : '⬤ СИСТЕМА В РЕЖИМЕ ОЖИДАНИЯ';
+    if (wakeMode) bar.classList.add('listening');
+    if (arc) { arc.setAttribute('stroke','#ff9900'); arc.style.filter='drop-shadow(0 0 4px #ff9900)'; }
+  } else if (state === 'wake') {
+    core.style.animation = 'speakP 0.5s ease-in-out infinite';
+    coreText.style.cssText = "font-family:'Arial Black',sans-serif;font-size:16px;font-weight:900;letter-spacing:2px;color:#00ff88;text-shadow:0 0 15px #00ff88,0 0 30px #00cc55;text-align:center;";
+    coreText.textContent = 'READY';
+    bar.textContent = '✅ УСЛЫШАЛ "ДЖАРВИС" — ГОВОРИТЕ!';
+    bar.classList.add('speaking');
+    wave.style.display = 'flex'; bars.forEach(b => b.style.background = '#00ff88');
+    if (arc) { arc.setAttribute('stroke','#00ff88'); arc.style.filter='drop-shadow(0 0 6px #00ff88)'; }
+  } else if (state === 'listening') {
+    core.style.animation = 'listenP 0.5s ease-in-out infinite';
+    coreText.style.cssText = "font-family:'Arial Black',sans-serif;font-size:16px;font-weight:900;letter-spacing:2px;color:#ff4400;text-shadow:0 0 15px #ff4400,0 0 30px #ff2200;text-align:center;";
+    coreText.textContent = 'REC';
+    bar.textContent = '🔴 ЗАПИСЫВАЮ КОМАНДУ...';
+    bar.classList.add('listening');
+    wave.style.display = 'flex'; bars.forEach(b => b.style.background = '#ff4400');
+    if (arc) { arc.setAttribute('stroke','#ff4400'); arc.style.filter='drop-shadow(0 0 6px #ff4400)'; }
+  } else if (state === 'thinking') {
+    core.style.animation = 'thinkP 0.8s ease-in-out infinite';
+    coreText.style.cssText = "font-family:'Arial Black',sans-serif;font-size:14px;font-weight:900;letter-spacing:2px;color:#ffaa00;text-shadow:0 0 15px #ffaa00,0 0 30px #ff8800;text-align:center;";
+    coreText.textContent = 'COMPUTING';
+    bar.textContent = '⚙ ОБРАБАТЫВАЮ ЗАПРОС...';
+    bar.classList.add('thinking');
+    if (arc) { arc.setAttribute('stroke','#ffaa00'); arc.style.filter='drop-shadow(0 0 6px #ffaa00)'; }
+  } else if (state === 'speaking') {
+    core.style.animation = 'speakP 0.4s ease-in-out infinite';
+    coreText.style.cssText = "font-family:'Arial Black',sans-serif;font-size:16px;font-weight:900;letter-spacing:2px;color:#00d4ff;text-shadow:0 0 15px #00d4ff,0 0 30px #0088cc;text-align:center;";
+    coreText.textContent = 'ONLINE';
+    bar.textContent = '🔊 ДЖАРВИС ОТВЕЧАЕТ...';
+    bar.classList.add('speaking');
+    wave.style.display = 'flex'; bars.forEach(b => b.style.background = '#00d4ff');
+    if (arc) { arc.setAttribute('stroke','#00d4ff'); arc.style.filter='drop-shadow(0 0 6px #00d4ff)'; }
+  }
+}
+
+// ── Voices ─────────────────────────────────────────────────
+if (synth) { const load = () => { availableVoices = synth.getVoices(); }; load(); synth.addEventListener('voiceschanged', load); }
+
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+  const btn = document.getElementById('voiceBtn');
+  if (voiceEnabled) {
+    btn.textContent = '🔊 ЗВУК ВКЛ'; btn.classList.add('active');
+    if (synth) { const t = new SpeechSynthesisUtterance(''); t.volume = 0; synth.speak(t); }
+    setTimeout(() => { if (synth) availableVoices = synth.getVoices(); }, 400);
+  } else {
+    btn.textContent = '🔇 ЗВУК ВЫКЛ'; btn.classList.remove('active');
+    if (synth) synth.cancel(); speaking = false;
+  }
+}
+
+function speak(text, onDone) {
+  if (!voiceEnabled || !synth) { if (onDone) onDone(); return; }
+  try {
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const voices = availableVoices.length ? availableVoices : synth.getVoices();
+    const v = voices.find(v => v.lang === 'ru-RU') || voices.find(v => v.lang.startsWith('ru')) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+    if (v) u.voice = v; u.rate = 0.85; u.pitch = 0.7; u.volume = 1;
+    u.onstart = () => { speaking = true; setReactorState('speaking'); };
+    u.onend = u.onerror = () => { speaking = false; if (onDone) onDone(); };
+    synth.speak(u);
+  } catch(e) { if (onDone) onDone(); }
+}
+
+// ── Wake mode — ОДИН continuous rec, не пикает ─────────────
+function toggleWakeMode() {
+  if (!SR) { appendMessage('jarvis', 'Микрофон не поддерживается. Используйте Chrome, сэр.'); return; }
+  wakeMode = !wakeMode;
+  const btn = document.getElementById('micBtn');
+  if (wakeMode) {
+    btn.textContent = '🔴 ВЫКЛ ГОЛОС'; btn.classList.add('red');
+    document.getElementById('wakeHint').innerHTML = '💬 Скажите <b style="color:#00ff88">"Джарвис"</b> — я откликнусь!';
+    startContinuousRec();
+  } else {
+    btn.textContent = '🎤 РЕЖИМ ГОЛОСА'; btn.classList.remove('red');
+    document.getElementById('wakeHint').innerHTML = '💬 Нажмите <b style="color:#00d4ff">"РЕЖИМ ГОЛОСА"</b> и скажите <b style="color:#00d4ff">"Джарвис"</b>';
+    stopRec();
+    setReactorState('idle');
+  }
+}
+
+function startContinuousRec() {
+  stopRec();
+  try {
+    rec = new SR();
+    rec.lang = 'ru-RU';
+    rec.continuous = true;       // непрерывно — НЕ пикает!
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      if (loading || speaking) return;
+      const transcript = e.results[e.results.length - 1][0].transcript.trim().toLowerCase();
+
+      if (!waitingCommand) {
+        // Ждём слово "Джарвис"
+        if (transcript.includes('джарвис') || transcript.includes('jarvis')) {
+          waitingCommand = true;
+          setReactorState('wake');
+          // Убираем wake слово из транскрипта и смотрим есть ли команда сразу
+          const cmd = transcript.replace(/джарвис|jarvis/gi, '').trim();
+          if (cmd.length > 2) {
+            // Команда сказана сразу после "Джарвис"
+            waitingCommand = false;
+            setReactorState('listening');
+            setTimeout(() => processVoiceCommand(cmd), 100);
+          } else {
+            // Ждём следующую фразу как команду
+            setReactorState('wake');
+            setTimeout(() => { if (waitingCommand) setReactorState('listening'); }, 800);
+          }
+        }
+      } else {
+        // Уже услышали "Джарвис", теперь это команда
+        waitingCommand = false;
+        setReactorState('listening');
+        setTimeout(() => processVoiceCommand(transcript), 100);
+      }
+    };
+    rec.onerror = (e) => {
+      if (e.error === 'no-speech') return; // игнорируем тишину
+      if (wakeMode) setTimeout(() => startContinuousRec(), 1000);
+    };
+    rec.onend = () => {
+      if (wakeMode && !loading) setTimeout(() => startContinuousRec(), 500);
+    };
+    rec.start();
+    setReactorState('idle');
+  } catch(e) {
+    if (wakeMode) setTimeout(() => startContinuousRec(), 1000);
+  }
+}
+
+function stopRec() {
+  try { if (rec) { rec.onend = null; rec.stop(); rec = null; } } catch(e) {}
+  waitingCommand = false;
+}
+
+// ── Встроенные команды ─────────────────────────────────────
+let torchOn = false;
+let torchStream = null;
+
+async function handleBuiltinCommand(text) {
+  const t = text.toLowerCase();
+
+  // ФОНАРИК
+  if (t.includes('фонарик') || t.includes('фонар')) {
+    if (t.includes('выкл') || t.includes('выключи') || t.includes('погаси')) {
+      if (torchStream) {
+        torchStream.getTracks().forEach(tr => tr.stop());
+        torchStream = null; torchOn = false;
+        jarvisReply('Фонарик выключен, сэр.'); return true;
+      }
+      jarvisReply('Фонарик и так выключен, сэр.'); return true;
+    }
+    try {
+      // Пробуем задную камеру
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const track = stream.getVideoTracks()[0];
+      // Пробуем включить torch
+      try {
+        await track.applyConstraints({ advanced: [{ torch: true }] });
+        torchStream = stream; torchOn = true;
+        jarvisReply('Фонарик включён, сэр.'); return true;
+      } catch(e2) {
+        // torch не поддерживается — пробуем imageCapture
+        try {
+          const ic = new ImageCapture(track);
+          await ic.setOptions({ fillLightMode: 'flash', torch: true });
+          torchStream = stream; torchOn = true;
+          jarvisReply('Фонарик включён, сэр.'); return true;
+        } catch(e3) {
+          stream.getTracks().forEach(tr => tr.stop());
+          jarvisReply('Сэр, ваш браузер или устройство не поддерживает управление фонариком. Это ограничение Android Chrome — попробуйте включить вручную.'); return true;
+        }
+      }
+    } catch(e) {
+      jarvisReply('Нет доступа к камере, сэр. Проверьте разрешения для этого сайта в Chrome.'); return true;
+    }
+  }
+
+  // САЙТЫ
+  const sites = {
+    'ютуб': 'https://youtube.com',
+    'youtube': 'https://youtube.com',
+    'гугл': 'https://google.com',
+    'google': 'https://google.com',
+    'инстаграм': 'https://instagram.com',
+    'instagram': 'https://instagram.com',
+    'тикток': 'https://tiktok.com',
+    'tiktok': 'https://tiktok.com',
+    'телеграм': 'https://web.telegram.org',
+    'telegram': 'https://web.telegram.org',
+    'вконтакте': 'https://vk.com',
+    'вк': 'https://vk.com',
+    'whatsapp': 'https://web.whatsapp.com',
+    'ватсап': 'https://web.whatsapp.com',
+    'spotify': 'https://open.spotify.com',
+    'спотифай': 'https://open.spotify.com',
+    'wikipedia': 'https://ru.wikipedia.org',
+    'википедия': 'https://ru.wikipedia.org',
+    'переводчик': 'https://translate.google.com',
+    'карты': 'https://maps.google.com',
+    'погода': 'https://weather.com',
+    'новости': 'https://news.google.com',
+  };
+  for (const [key, url] of Object.entries(sites)) {
+    if (t.includes(key)) {
+      window.open(url, '_blank');
+      jarvisReply(`Открываю ${key}, сэр.`); return true;
+    }
+  }
+
+  // ПОИСК — "найди ...", "поищи ..."
+  if (t.includes('найди') || t.includes('поищи') || t.includes('найдите') || t.includes('загугли')) {
+    const query = text
+      .replace(/джарвис/gi,'').replace(/найди|поищи|найдите|загугли/gi,'').trim();
+    if (query.length > 1) {
+      window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
+      jarvisReply(`Ищу "${query}" в Google, сэр.`); return true;
+    }
+    jarvisReply('Что именно найти, сэр?'); return true;
+  }
+
+  // АНАЛИЗ ТЕЛЕФОНА
+  if (t.includes('анализ') || t.includes('проанализируй') || t.includes('ошибк') || t.includes('диагностик') || t.includes('проверь телефон') || t.includes('состояние телефона')) {
+    let report = 'Запускаю диагностику системы, сэр.\n\n';
+    try {
+      // Батарея
+      try {
+        const batt = await navigator.getBattery();
+        const pct = Math.round(batt.level * 100);
+        const status = batt.charging ? '⚡ заряжается' : (pct < 20 ? '⚠️ низкий' : '✅ норма');
+        report += `🔋 Батарея: ${pct}% — ${status}\n`;
+      } catch(e) { report += `🔋 Батарея: нет доступа\n`; }
+
+      // Память устройства
+      const mem = navigator.deviceMemory;
+      if (mem) report += `💾 RAM: ${mem} ГБ — ${mem < 4 ? '⚠️ мало' : '✅ норма'}\n`;
+
+      // Соединение
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (conn) {
+        const type = conn.effectiveType || conn.type || 'неизвестно';
+        const speed = conn.downlink ? `${conn.downlink} Мбит/с` : '';
+        report += `📶 Сеть: ${type.toUpperCase()} ${speed} — ${conn.downlink > 5 ? '✅ хорошая' : '⚠️ медленная'}\n`;
+      } else {
+        report += `📶 Сеть: ${navigator.onLine ? '✅ подключено' : '❌ нет соединения'}\n`;
+      }
+
+      // Платформа
+      const ua = navigator.userAgent;
+      const android = ua.match(/Android ([\d.]+)/);
+      if (android) report += `📱 Android: версия ${android[1]}\n`;
+
+      // Язык
+      report += `🌐 Язык: ${navigator.language}\n`;
+
+      // Вывод
+      report += `\n✅ Критических ошибок не обнаружено, сэр.`;
+    } catch(e) {
+      report += '⚠️ Не удалось получить все данные.';
+    }
+    appendMessage('jarvis', report);
+    messages.push({ role: 'assistant', content: report });
+    speak('Диагностика завершена, сэр. Критических ошибок не обнаружено.', () => {
+      setReactorState('idle');
+      if (wakeMode) setTimeout(() => startContinuousRec(), 600);
+    });
+    if (!voiceEnabled) { setReactorState('idle'); if (wakeMode) setTimeout(() => startContinuousRec(), 300); }
+    loading = false;
+    document.getElementById('sendBtn').disabled = false;
+    return true;
+  }
+  if (t.includes('час') || t.includes('время') || t.includes('сколько времени') || t.includes('который час') || t.includes('сейчас')) {
+    const now = new Date();
+    const h = now.getHours().toString().padStart(2,'0');
+    const m = now.getMinutes().toString().padStart(2,'0');
+    jarvisReply(`Сейчас ${h}:${m}, сэр.`); return true;
+  }
+
+  // ДАТА
+  if (t.includes('дата') || t.includes('какое число') || t.includes('какой день') || t.includes('какой сегодня')) {
+    const now = new Date();
+    const days = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+    const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+    jarvisReply(`Сегодня ${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} года, сэр.`); return true;
+  }
+
+  // БАТАРЕЯ
+  if (t.includes('батарея') || t.includes('заряд') || t.includes('аккумулятор')) {
+    try {
+      const batt = await navigator.getBattery();
+      const pct = Math.round(batt.level * 100);
+      const charging = batt.charging ? ', идёт зарядка' : '';
+      jarvisReply(`Заряд батареи ${pct}%${charging}, сэр.`); return true;
+    } catch(e) {
+      jarvisReply('Не могу получить данные батареи, сэр.'); return true;
+    }
+  }
+
+  // ТАЙМЕР
+  const timerMatch = t.match(/таймер[^\d]*(\d+)\s*(минут|мин|секунд|сек)/);
+  if (timerMatch) {
+    const num = parseInt(timerMatch[1]);
+    const unit = timerMatch[2];
+    const ms = (unit.startsWith('мин') || unit === 'min') ? num * 60000 : num * 1000;
+    jarvisReply(`Таймер на ${num} ${unit} запущен, сэр.`);
+    setTimeout(() => {
+      appendMessage('jarvis', `⏰ Таймер на ${num} ${unit} сработал, сэр!`);
+      speak(`Таймер на ${num} ${unit} сработал, сэр!`, null);
+    }, ms);
+    return true;
+  }
+
+  return false; // не найдена — идём к ИИ
+}
+
+function jarvisReply(text) {
+  appendMessage('jarvis', text);
+  messages.push({ role: 'assistant', content: text });
+  speak(text, () => {
+    setReactorState('idle');
+    if (wakeMode) setTimeout(() => startContinuousRec(), 600);
+  });
+  if (!voiceEnabled) { setReactorState('idle'); if (wakeMode) setTimeout(() => startContinuousRec(), 300); }
+  loading = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+async function processVoiceCommand(text) {
+  if (!text || loading) return;
+  // Пауза микрофона пока отвечаем
+  try { if (rec) rec.onend = null; if (rec) rec.stop(); } catch(e) {}
+
+  appendMessage('user', text);
+  messages.push({ role: 'user', content: text });
+
+  // Сначала проверяем встроенные команды
+  loading = true;
+  document.getElementById('sendBtn').disabled = true;
+  setReactorState('thinking');
+  const handled = await handleBuiltinCommand(text);
+  if (handled) return;
+
+  // Если не встроенная — идём к ИИ
+  setReactorState('thinking');
+  const typingEl = appendMessage('jarvis', '● ● ●', true);
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, system: SYSTEM_PROMPT, messages })
+    });
+    const data = await res.json();
+    const reply = (data.content || []).map(b => b.text || '').join('') || 'Ошибка соединения, сэр.';
+    typingEl.remove();
+    appendMessage('jarvis', reply);
+    messages.push({ role: 'assistant', content: reply });
+    speak(reply, () => {
+      setReactorState('idle');
+      if (wakeMode) setTimeout(() => startContinuousRec(), 600);
+    });
+    if (!voiceEnabled) {
+      setReactorState('idle');
+      if (wakeMode) setTimeout(() => startContinuousRec(), 300);
+    }
+  } catch {
+    typingEl.remove();
+    appendMessage('jarvis', 'Потеря сигнала, сэр. Повторите.');
+    setReactorState('idle');
+    if (wakeMode) setTimeout(() => startContinuousRec(), 600);
+  }
+  loading = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+// ── Text input ─────────────────────────────────────────────
+document.getElementById('userInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+
+async function sendMessage() {
+  const inp = document.getElementById('userInput');
+  const text = inp.value.trim();
+  if (!text || loading) return;
+  inp.value = '';
+  await processVoiceCommand(text);
+}
+
+function appendMessage(who, text, isTyping = false) {
+  const box = document.getElementById('chatBox');
+  const div = document.createElement('div');
+  div.className = `msg ${who}`;
+  div.innerHTML = `<div class="msg-label">${who === 'jarvis' ? 'JARVIS' : 'ВЫ'}</div><div class="msg-text${isTyping ? ' typing' : ''}">${text}</div>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+</script>
+</body>
+</html>
